@@ -52,8 +52,13 @@ bool FollowChatShortcutAction::Execute(Event /*event*/)
 
     // botAI->Reset();
     botAI->ChangeStrategy("+follow,-passive,-grind,-move from group", BOT_STATE_NON_COMBAT);
-    botAI->ChangeStrategy("-stay,-follow,-passive,-grind,-move from group", BOT_STATE_COMBAT);
-    botAI->GetAiObjectContext()->GetValue<GuidVector>("prioritized targets")->Reset();
+    // do not touch combat strategies or the target list while the bot is fighting,
+    // otherwise the combat engine may drop the current target and attack something random
+    if (!bot->IsInCombat())
+    {
+        botAI->ChangeStrategy("-stay,-follow,-passive,-grind,-move from group", BOT_STATE_COMBAT);
+        botAI->GetAiObjectContext()->GetValue<GuidVector>("prioritized targets")->Reset();
+    }
 
     PositionMap& posMap = context->GetValue<PositionMap&>("position")->Get();
     PositionInfo pos = posMap["return"];

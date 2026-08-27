@@ -1636,6 +1636,8 @@ void PlayerbotMgr::OnBotLoginInternal(Player* const bot)
     }
     botAI->SetMaster(master);
     botAI->ResetStrategies();
+    // ensure follow is enabled regardless of the bot's state at login (safety net over ResetStrategies defaults)
+    botAI->ChangeStrategy("+follow", BOT_STATE_NON_COMBAT);
 
     LOG_INFO("playerbots", "Bot {} logged in", bot->GetName().c_str());
 }
