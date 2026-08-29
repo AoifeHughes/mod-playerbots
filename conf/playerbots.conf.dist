@@ -774,6 +774,26 @@ AiPlayerbot.RandomBotMinLevelChance = 0.1
 # Default 0.1 (10%)
 AiPlayerbot.RandomBotMaxLevelChance = 0.1
 
+# Cluster randombot levels around the highest online real player's level
+# instead of a flat uniform spread across RandomBotMinLevel..RandomBotMaxLevel.
+# ClusterLevelsNearPlayersPercent of level rolls land within
+# +/-ClusterLevelsNearPlayersRange of that level; the rest still use
+# RandomBotMinLevelChance/RandomBotMaxLevelChance/uniform spread above, so
+# some level variety remains. Applies on every (re-)randomize, so existing
+# bots phase in as they naturally cycle through Min/MaxRandomBotRandomizeTime,
+# not instantly.
+# Default: 0 (disabled)
+AiPlayerbot.ClusterLevelsNearPlayers = 0
+
+# Percent of level rolls that land in the near-player band above when
+# ClusterLevelsNearPlayers is enabled.
+# Default: 90
+AiPlayerbot.ClusterLevelsNearPlayersPercent = 90
+
+# Width of the near-player level band above (target level +/- this value).
+# Default: 5
+AiPlayerbot.ClusterLevelsNearPlayersRange = 5
+
 # Fix the level of randombots (they won't level up)
 # Default: 0 (disabled)
 AiPlayerbot.RandomBotFixedLevel = 0

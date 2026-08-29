@@ -149,6 +149,15 @@ public:
     bool preferClassArmorType;
     bool preferredSpecWeapons;
     float randomBotMinLevelChance, randomBotMaxLevelChance;
+    // Clusters randombot levels around the highest online real player's level
+    // instead of a flat uniform spread across RandomBotMinLevel..MaxLevel.
+    // clusterLevelsNearPlayersPercent of rolls land within
+    // +/-clusterLevelsNearPlayersRange of that level; the remainder still
+    // uses the existing min/max-chance + uniform-spread logic so some level
+    // variety remains. Disabled (0) preserves the original flat distribution.
+    bool clusterLevelsNearPlayers;
+    uint32 clusterLevelsNearPlayersPercent;
+    uint32 clusterLevelsNearPlayersRange;
     float randomBotRpgChance;
     uint32 minRandomBots, maxRandomBots;
     uint32 randomBotUpdateInterval, randomBotCountChangeMinInterval, randomBotCountChangeMaxInterval;

@@ -1920,6 +1920,18 @@ void RandomPlayerbotMgr::RandomizeFirst(Player* bot)
             level = sPlayerbotAIConfig.randomBotMinLevel;
         }
     }
+    else if (sPlayerbotAIConfig.clusterLevelsNearPlayers &&
+             urand(1, 100) <= sPlayerbotAIConfig.clusterLevelsNearPlayersPercent)
+    {
+        // playersLevel is maintained as (highest online real player's level + 3)
+        // by CheckPlayers(); undo that offset to get the actual reference level.
+        uint32 const referenceLevel = std::clamp<uint32>(
+            playersLevel > 3 ? playersLevel - 3 : sPlayerbotAIConfig.randombotStartingLevel, minLevel, maxLevel);
+        uint32 const range = sPlayerbotAIConfig.clusterLevelsNearPlayersRange;
+        uint32 const bandMin = std::max(minLevel, referenceLevel > range ? referenceLevel - range : minLevel);
+        uint32 const bandMax = std::min(maxLevel, referenceLevel + range);
+        level = urand(bandMin, bandMax);
+    }
     else
     {
         uint32 roll = urand(1, 100);
