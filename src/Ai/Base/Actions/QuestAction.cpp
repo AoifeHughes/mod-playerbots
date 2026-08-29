@@ -161,7 +161,11 @@ bool QuestAction::CompleteQuest(Player* player, uint32 entry)
         LOG_INFO("playerbots", "{} => Quest [ {} ] completed", bot->GetName(), pQuest->GetTitle());
         bot->Say("Quest [ " + text_quest + " ] completed", LANG_UNIVERSAL);
     }
-    botAI->TellMasterNoFacing("Quest completed " + text_quest);
+    // 2026-08-29: removed the unconditional native "Quest completed X" whisper
+    // here -- mod-lm-chat's own EventTypeCompletedQuest event chatter already
+    // covers quest completion organically via the LLM, and having both meant
+    // every completion produced a flat native whisper in addition to (not
+    // instead of) the LLM one.
 
     player->CompleteQuest(entry);
 
@@ -287,9 +291,9 @@ bool QuestUpdateCompleteAction::Execute(Event event)
             //     LOG_INFO("playerbots", "{} => Quest [ {} ] completed", bot->GetName(), qInfo->GetTitle());
             //     bot->Say("Quest [ " + format + " ] completed", LANG_UNIVERSAL);
             // }
-        const auto format = ChatHelper::FormatQuest(qInfo);
-        if (botAI->GetMaster())
-            botAI->TellMasterNoFacing("Quest completed " + format);
+        // 2026-08-29: removed the native "Quest completed X" whisper here too --
+        // see the other completion path above for why (mod-lm-chat's own
+        // EventTypeCompletedQuest chatter already covers this organically).
         BroadcastHelper::BroadcastQuestUpdateComplete(botAI, bot, qInfo);
         botAI->rpgStatistic.questCompleted++;
         // LOG_DEBUG("playerbots", "[New rpg] {} complete quest {}", bot->GetName(), qInfo->GetQuestId());

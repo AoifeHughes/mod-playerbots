@@ -547,8 +547,16 @@ void PlayerbotHolder::OnBotLogin(Player* const bot)
     // set delay on login
     botAI->SetNextCheckDelay(urand(2000, 4000));
 
-    botAI->TellMaster(PlayerbotTextMgr::instance().GetBotTextOrDefault(
-        "hello", "Hello!", {}), PLAYERBOT_SECURITY_TALK);
+    // 2026-08-29: removed the unconditional native "Hello!" whisper every
+    // master-bound bot sent here on every login (CHAT_MSG_WHISPER via
+    // TellMaster -> TellMasterNoFacing) -- with several companion bots this
+    // meant a burst of whispers landing on the player right at login, every
+    // single time. This is a raw packet push (master->SendDirectMessage in
+    // TellMasterNoFacing) that bypasses the normal chat pipeline entirely, so
+    // it never reached mod-lm-chat's own OnPlayerCanUseChat hook or
+    // conversation history -- but it was still real login noise the player
+    // didn't want. No-op for masterless random bots either way (TellMaster
+    // requires a master via IsTellAllowed).
 
     // Queue group operations for world thread
     if (master && master->GetGroup() && !group)

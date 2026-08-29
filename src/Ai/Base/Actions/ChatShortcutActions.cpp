@@ -52,12 +52,19 @@ bool FollowChatShortcutAction::Execute(Event /*event*/)
         return false;
 
     // botAI->Reset();
-    botAI->ChangeStrategy("+follow,-passive,-grind,-move from group", BOT_STATE_NON_COMBAT);
+    // "-passive" removed from both scopes below (2026-08-29): following should
+    // only ever change movement/positioning strategies. It previously also
+    // silently cleared the player's explicit passive/aggressive combat-mode
+    // preference on every "follow me", which (a) could put a passive bot into
+    // an unwanted fight the instant a nearby mob was in aggro range, and (b)
+    // once PlayerbotRepository::Save() below started running, durably
+    // overwrote that preference instead of just affecting the live session.
+    botAI->ChangeStrategy("+follow,-grind,-move from group", BOT_STATE_NON_COMBAT);
     // do not touch combat strategies or the target list while the bot is fighting,
     // otherwise the combat engine may drop the current target and attack something random
     if (!bot->IsInCombat())
     {
-        botAI->ChangeStrategy("-stay,-follow,-passive,-grind,-move from group", BOT_STATE_COMBAT);
+        botAI->ChangeStrategy("-stay,-follow,-grind,-move from group", BOT_STATE_COMBAT);
         botAI->GetAiObjectContext()->GetValue<GuidVector>("prioritized targets")->Reset();
     }
 
@@ -135,8 +142,11 @@ bool StayChatShortcutAction::Execute(Event /*event*/)
         return false;
 
     botAI->Reset();
-    botAI->ChangeStrategy("+stay,-passive,-move from group", BOT_STATE_NON_COMBAT);
-    botAI->ChangeStrategy("+stay,-follow,-passive,-move from group", BOT_STATE_COMBAT);
+    // See FollowChatShortcutAction::Execute -- "-passive" removed from both
+    // scopes for the same reason: staying put shouldn't silently override the
+    // player's explicit combat-mode preference.
+    botAI->ChangeStrategy("+stay,-move from group", BOT_STATE_NON_COMBAT);
+    botAI->ChangeStrategy("+stay,-follow,-move from group", BOT_STATE_COMBAT);
 
     SetReturnPosition(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
     SetStayPosition(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
