@@ -232,7 +232,16 @@ bool GrindChatShortcutAction::Execute(Event /*event*/)
         return false;
 
     botAI->Reset();
-    botAI->ChangeStrategy("+grind,-passive,-stay", BOT_STATE_NON_COMBAT);
+    // 2026-08-29: this shortcut predates the follow/grind/stay mutual-exclusivity
+    // fix and was missed by it -- "-passive" here only ever touched the non-combat
+    // scope, which does nothing about the PassiveMultiplier that combat-scope
+    // "+passive" installs (see set_grind_mode / MultiBotBridge for the same fix).
+    // Brought in line with those: clear follow/stay/move-from-group in non-combat,
+    // clear passive in combat, and persist like Follow/Stay already do.
+    botAI->ChangeStrategy("+grind,-follow,-stay,-move from group", BOT_STATE_NON_COMBAT);
+    botAI->ChangeStrategy("-passive", BOT_STATE_COMBAT);
+
+    PlayerbotRepository::instance().Save(botAI);
 
     ResetReturnPosition();
     ResetStayPosition();
