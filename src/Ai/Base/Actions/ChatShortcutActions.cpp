@@ -59,7 +59,10 @@ bool FollowChatShortcutAction::Execute(Event /*event*/)
     // an unwanted fight the instant a nearby mob was in aggro range, and (b)
     // once PlayerbotRepository::Save() below started running, durably
     // overwrote that preference instead of just affecting the live session.
-    botAI->ChangeStrategy("+follow,-grind,-move from group", BOT_STATE_NON_COMBAT);
+    // "-stay" added (2026-08-30): follow already cleared grind but not stay,
+    // so a bot told to stay and then follow could retain both -- same class
+    // of bug as set_grind_mode below.
+    botAI->ChangeStrategy("+follow,-grind,-stay,-move from group", BOT_STATE_NON_COMBAT);
     // do not touch combat strategies or the target list while the bot is fighting,
     // otherwise the combat engine may drop the current target and attack something random
     if (!bot->IsInCombat())
@@ -145,8 +148,12 @@ bool StayChatShortcutAction::Execute(Event /*event*/)
     // See FollowChatShortcutAction::Execute -- "-passive" removed from both
     // scopes for the same reason: staying put shouldn't silently override the
     // player's explicit combat-mode preference.
-    botAI->ChangeStrategy("+stay,-move from group", BOT_STATE_NON_COMBAT);
-    botAI->ChangeStrategy("+stay,-follow,-move from group", BOT_STATE_COMBAT);
+    // "-follow"/"-grind" added (2026-08-30): non-combat scope previously
+    // cleared neither, and combat scope cleared follow but not grind, so a
+    // grinding bot told to stay could keep grinding right alongside it --
+    // same class of bug as set_grind_mode's missing -follow/-stay.
+    botAI->ChangeStrategy("+stay,-follow,-grind,-move from group", BOT_STATE_NON_COMBAT);
+    botAI->ChangeStrategy("+stay,-follow,-grind,-move from group", BOT_STATE_COMBAT);
 
     SetReturnPosition(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
     SetStayPosition(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
