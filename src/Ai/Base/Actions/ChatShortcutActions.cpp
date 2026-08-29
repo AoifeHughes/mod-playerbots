@@ -8,6 +8,7 @@
 
 #include "Event.h"
 #include "Formations.h"
+#include "PlayerbotRepository.h"
 #include "PlayerbotTextMgr.h"
 #include "Playerbots.h"
 #include "PositionValue.h"
@@ -59,6 +60,12 @@ bool FollowChatShortcutAction::Execute(Event /*event*/)
         botAI->ChangeStrategy("-stay,-follow,-passive,-grind,-move from group", BOT_STATE_COMBAT);
         botAI->GetAiObjectContext()->GetValue<GuidVector>("prioritized targets")->Reset();
     }
+
+    // Unlike ChangeStrategyAction (the .strategy/set_strategy path), this shortcut never
+    // persisted its strategy changes -- so a plain "follow me" (and the +passive it clears
+    // above) was live-only and silently lost on the next login, which then restored
+    // whatever an explicit .strategy command had last saved instead.
+    PlayerbotRepository::instance().Save(botAI);
 
     PositionMap& posMap = context->GetValue<PositionMap&>("position")->Get();
     PositionInfo pos = posMap["return"];
@@ -133,6 +140,9 @@ bool StayChatShortcutAction::Execute(Event /*event*/)
 
     SetReturnPosition(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
     SetStayPosition(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ());
+
+    // See FollowChatShortcutAction::Execute -- same missing persistence.
+    PlayerbotRepository::instance().Save(botAI);
 
     botAI->TellMaster(PlayerbotTextMgr::instance().GetBotTextOrDefault(
         "staying", "Staying", {}));
