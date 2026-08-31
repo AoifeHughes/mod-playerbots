@@ -1696,6 +1696,23 @@ void RandomPlayerbotMgr::RandomTeleport(Player* bot, std::vector<WorldLocation>&
                 if (zone->team == 2 && bot->GetTeamId() == TEAM_HORDE)
                     continue;
 
+                // Skip candidates whose zone content level doesn't suit this bot. The
+                // near-player filter above only checks map, distance and faction, so without
+                // this a bot can get clustered next to a reference player standing in a zone
+                // far outside the bot's own level range (e.g. a level 60 bot ending up in a
+                // 1-10 starter zone). area_level is 0 for zones with no set content level
+                // (capital cities, etc.) -- those aren't level-gated here.
+                AreaTableEntry const* area = sAreaTableStore.LookupEntry(
+                    map->GetAreaId(bot->GetPhaseMask(), loc.GetPositionX(), loc.GetPositionY(), loc.GetPositionZ()));
+                uint32 const zoneLevel = (area && area->area_level) ? area->area_level : zone->area_level;
+                if (zoneLevel)
+                {
+                    int32 const diff = static_cast<int32>(bot->GetLevel()) - static_cast<int32>(zoneLevel);
+                    if (diff > static_cast<int32>(sPlayerbotAIConfig.randomBotTeleHigherLevel) ||
+                        diff < -static_cast<int32>(sPlayerbotAIConfig.randomBotTeleLowerLevel))
+                        continue;
+                }
+
                 nearLocs.push_back(loc);
             }
 
