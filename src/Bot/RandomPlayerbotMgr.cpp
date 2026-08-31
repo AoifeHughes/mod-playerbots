@@ -372,7 +372,13 @@ void RandomPlayerbotMgr::UpdateAIInternal(uint32 /*elapsed*/, bool /*minimal*/)
         AddRandomBots();
     }
 
-    if (sPlayerbotAIConfig.syncLevelWithPlayers && !players.empty())
+    // playersLevel (updated by CheckPlayers()) is consumed both by
+    // syncLevelWithPlayers (caps bot max level) and clusterLevelsNearPlayers
+    // (clusters level rolls near the player) -- run the check for either,
+    // not just the former, or clusterLevelsNearPlayers silently clusters
+    // around the never-updated default (randombotStartingLevel) instead of
+    // the real player's level.
+    if ((sPlayerbotAIConfig.syncLevelWithPlayers || sPlayerbotAIConfig.clusterLevelsNearPlayers) && !players.empty())
     {
         if (time(nullptr) > (PlayersCheckTimer + 60))
             sRandomPlayerbotMgr.CheckPlayers();
@@ -1635,6 +1641,68 @@ void RandomPlayerbotMgr::RandomTeleport(Player* bot, std::vector<WorldLocation>&
     }
 
     PerfMonitorOperation* pmo = sPerfMonitor.start(PERF_MON_RNDBOT, "RandomTeleportByLocations");
+
+    // Restrict the candidate pool to locations near the highest-level online
+    // real player instead of spreading uniformly across every continent, on
+    // clusterLocationsNearPlayersPercent of rolls. Also applies the same
+    // zone-team compatibility check the main loop below does (skip enemy-only
+    // zones for low-level bots) while building the pool -- otherwise, for a
+    // bot of the opposite faction to the reference player, nearLocs could end
+    // up entirely inside that player's own-faction zone and every candidate
+    // would then get rejected by the main loop's team check below, silently
+    // failing to teleport this cycle instead of falling back to the full
+    // pool. Falls back to the full pool when no real player is online, or
+    // none of the candidates are on that player's map within range (or,
+    // for the bot's faction, none of those are usable), so bots still
+    // populate zones the player isn't currently in.
+    if (sPlayerbotAIConfig.clusterLocationsNearPlayers &&
+        urand(1, 100) <= sPlayerbotAIConfig.clusterLocationsNearPlayersPercent)
+    {
+        Player* referencePlayer = nullptr;
+        for (Player* player : players)
+        {
+            if (player->IsGameMaster())
+                continue;
+
+            if (!referencePlayer || player->GetLevel() > referencePlayer->GetLevel())
+                referencePlayer = player;
+        }
+
+        if (referencePlayer)
+        {
+            WorldPosition refPos(referencePlayer);
+            uint32 const refMap = referencePlayer->GetMapId();
+            float const rangeSq = sPlayerbotAIConfig.clusterLocationsNearPlayersRange *
+                                   sPlayerbotAIConfig.clusterLocationsNearPlayersRange;
+
+            std::vector<WorldPosition> nearLocs;
+            for (WorldPosition const& loc : tlocs)
+            {
+                if (loc.GetMapId() != refMap || refPos.sqDistance(loc) > rangeSq)
+                    continue;
+
+                Map* map = sMapMgr->FindMap(loc.GetMapId(), 0);
+                if (!map)
+                    continue;
+
+                AreaTableEntry const* zone = sAreaTableStore.LookupEntry(
+                    map->GetZoneId(bot->GetPhaseMask(), loc.GetPositionX(), loc.GetPositionY(), loc.GetPositionZ()));
+                if (!zone)
+                    continue;
+
+                if (zone->team == 4 && bot->GetTeamId() == TEAM_ALLIANCE)
+                    continue;
+
+                if (zone->team == 2 && bot->GetTeamId() == TEAM_HORDE)
+                    continue;
+
+                nearLocs.push_back(loc);
+            }
+
+            if (!nearLocs.empty())
+                tlocs = nearLocs;
+        }
+    }
 
     std::shuffle(std::begin(tlocs), std::end(tlocs), RandomEngine::Instance());
     for (uint32 i = 0; i < tlocs.size(); i++)

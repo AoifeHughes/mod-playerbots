@@ -810,6 +810,29 @@ AiPlayerbot.ClusterLevelsNearPlayersPercent = 90
 # Default: 5
 AiPlayerbot.ClusterLevelsNearPlayersRange = 5
 
+# Cluster randombot teleport destinations (RandomTeleport/RandomTeleportForLevel,
+# used on every (re-)randomize and periodic zone-hop) near the highest online
+# real player's current position, instead of spreading uniformly across every
+# level-appropriate location on every continent.
+# ClusterLocationsNearPlayersPercent of location rolls are restricted to
+# same-map candidates within ClusterLocationsNearPlayersRange yards of that
+# player; the rest, and any roll where nothing qualifies (no real player
+# online, or none of the level-appropriate candidates are on their map/in
+# range), fall back to the full location list, so bots still populate zones
+# the player isn't currently in.
+# Default: 0 (disabled)
+AiPlayerbot.ClusterLocationsNearPlayers = 0
+
+# Percent of location rolls that are restricted to the near-player range above
+# when ClusterLocationsNearPlayers is enabled.
+# Default: 90
+AiPlayerbot.ClusterLocationsNearPlayersPercent = 90
+
+# Radius in yards, on the reference player's map, that counts as "near" for
+# the setting above.
+# Default: 1500
+AiPlayerbot.ClusterLocationsNearPlayersRange = 1500
+
 # Fix the level of randombots (they won't level up)
 # Default: 0 (disabled)
 AiPlayerbot.RandomBotFixedLevel = 0

@@ -158,6 +158,19 @@ public:
     bool clusterLevelsNearPlayers;
     uint32 clusterLevelsNearPlayersPercent;
     uint32 clusterLevelsNearPlayersRange;
+    // Clusters randombot teleport destinations near the highest online real
+    // player's current position instead of spreading uniformly across every
+    // level-appropriate location on every continent. Mirrors
+    // clusterLevelsNearPlayers above but for the location roll in
+    // RandomTeleport(): clusterLocationsNearPlayersPercent of rolls are
+    // restricted to same-map locations within
+    // clusterLocationsNearPlayersRange yards of that player; the rest, and
+    // any roll where no candidate qualifies, fall back to the full
+    // level-appropriate location list so bots still populate zones the
+    // player isn't in. Disabled (0) preserves the original uniform spread.
+    bool clusterLocationsNearPlayers;
+    uint32 clusterLocationsNearPlayersPercent;
+    float clusterLocationsNearPlayersRange;
     float randomBotRpgChance;
     uint32 minRandomBots, maxRandomBots;
     uint32 randomBotUpdateInterval, randomBotCountChangeMinInterval, randomBotCountChangeMaxInterval;

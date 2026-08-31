@@ -176,6 +176,11 @@ bool PlayerbotAIConfig::Initialize()
     clusterLevelsNearPlayers = sConfigMgr->GetOption<bool>("AiPlayerbot.ClusterLevelsNearPlayers", false);
     clusterLevelsNearPlayersPercent = sConfigMgr->GetOption<uint32>("AiPlayerbot.ClusterLevelsNearPlayersPercent", 90);
     clusterLevelsNearPlayersRange = sConfigMgr->GetOption<uint32>("AiPlayerbot.ClusterLevelsNearPlayersRange", 5);
+    clusterLocationsNearPlayers = sConfigMgr->GetOption<bool>("AiPlayerbot.ClusterLocationsNearPlayers", false);
+    clusterLocationsNearPlayersPercent =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.ClusterLocationsNearPlayersPercent", 90);
+    clusterLocationsNearPlayersRange =
+        sConfigMgr->GetOption<float>("AiPlayerbot.ClusterLocationsNearPlayersRange", 1500.0f);
     randomBotRpgChance = sConfigMgr->GetOption<float>("AiPlayerbot.RandomBotRpgChance", 0.20f);
 
     iterationsPerTick = sConfigMgr->GetOption<int32>("AiPlayerbot.IterationsPerTick", 10);
