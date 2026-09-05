@@ -361,6 +361,14 @@ void RandomBotLevelMgr::AdjustBotToRange(Player* bot, int targetRangeIndex, Team
         (team == TEAM_ALLIANCE) ? "Alliance" : "Horde", bot->GetName(),
         botAI ? botAI->GetChatHelper()->FormatClass(bot->getClass()) : "Unknown", botOriginalLevel, newLevel,
         factionRanges[targetRangeIndex].lower, factionRanges[targetRangeIndex].upper);
+
+    // Unlike organic in-game leveling, this path never sends a level-up packet, so the
+    // WorldPacketHandlerStrategy "levelup" trigger that normally fires AutoTeleportForLevel
+    // (see AutoMaintenanceOnLevelupAction) never runs for a bot relevelled here -- it would
+    // otherwise sit at its old position forever, e.g. a level-80 bot stuck in a starter zone.
+    // Mirror that same relocation directly instead of relying on the trigger.
+    if (sPlayerbotAIConfig.autoTeleportForLevel)
+        sRandomPlayerbotMgr.RandomTeleportForLevel(bot);
 }
 
 // Loads the list of social friend low GUIDs (character_social, flags = 1) into _socialFriendsList.
