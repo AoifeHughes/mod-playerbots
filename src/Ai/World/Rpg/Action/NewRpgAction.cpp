@@ -377,6 +377,9 @@ bool NewRpgWanderRandomAction::Execute(Event /*event*/)
 
 bool NewRpgWanderNpcAction::Execute(Event /*event*/)
 {
+    if (SearchQuestGiverAndAcceptOrReward())
+        return true;
+
     NewRpgInfo& info = botAI->rpgInfo;
     auto* dataPtr = std::get_if<NewRpgInfo::WanderNpc>(&info.data);
     if (!dataPtr)
