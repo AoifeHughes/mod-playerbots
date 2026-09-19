@@ -863,7 +863,17 @@ void PlayerbotFactory::Randomize(bool incremental)
 
     pmo = sPerfMonitor.start(PERF_MON_RNDBOT, "PlayerbotFactory_Talents");
     LOG_DEBUG("playerbots", "Initializing talents...");
-    if (!incremental || !sPlayerbotAIConfig.equipAndSpecPersistence ||
+    // Deliberately does NOT check `incremental` here (unlike most other gates
+    // in this function) -- EquipAndSpecPersistence exists to say "once this
+    // bot is past this level, never reroll its talents again", independent of
+    // *why* Randomize() was called. The old `!incremental ||` short-circuit
+    // meant every full/non-incremental call -- exactly what
+    // RandomBotLevelMgr::AdjustBotToRange/ResetBot/SkipBotLevel use to
+    // relevel an EXISTING bot into a new level bracket -- ignored persistence
+    // entirely and always rerolled a fresh weighted-random talent build,
+    // silently flipping a bonded bot's spec on a routine rebracket even with
+    // this setting on. The matching equipment guard below had the same bug.
+    if (!sPlayerbotAIConfig.equipAndSpecPersistence ||
         bot->GetLevel() < sPlayerbotAIConfig.equipAndSpecPersistenceLevel)
     {
         uint32 specIndex = InitTalentsTree();
@@ -911,7 +921,9 @@ void PlayerbotFactory::Randomize(bool incremental)
 
     pmo = sPerfMonitor.start(PERF_MON_RNDBOT, "PlayerbotFactory_Equip");
     LOG_DEBUG("playerbots", "Initializing equipmemt...");
-    if (!incremental || !sPlayerbotAIConfig.equipAndSpecPersistence ||
+    // See the matching talent guard above for why `incremental` is
+    // deliberately not part of this condition.
+    if (!sPlayerbotAIConfig.equipAndSpecPersistence ||
         bot->GetLevel() < sPlayerbotAIConfig.equipAndSpecPersistenceLevel)
     {
         InitEquipment(incremental, incremental ? false : sPlayerbotAIConfig.twoRoundsGearInit);
