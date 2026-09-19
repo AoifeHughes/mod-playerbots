@@ -573,9 +573,17 @@ bool NewRpgBaseAction::IsQuestWorthDoing(Quest const* quest)
 
 bool NewRpgBaseAction::IsQuestCapableDoing(Quest const* quest)
 {
-    bool highLevelQuest = bot->GetLevel() + 3 < bot->GetQuestLevel(quest);
-    if (highLevelQuest)
-        return false;
+    // 2026-09-13: dropped the "bot level + 3 < quest level" reject. That rule
+    // meant a quest whose *recommended* level was more than 3 above the
+    // bot's own -- unrelated to whether the bot actually meets the quest's
+    // real MinLevel gate, which CanTakeQuest()/ActivateToQuest() already
+    // enforce upstream of this -- was silently refused forever, then
+    // OrganizeQuestLog() below would drop it again on every later tick even
+    // if something else had granted it. A quest a real player could
+    // legitimately walk up and accept (they're escorted by the real player,
+    // not soloing blind) should not be second-guessed here; only the
+    // elite/group-size guards below stay, since those are about solo
+    // capability, not level.
 
     // Elite quest and dungeon quest etc
     if (quest->GetType() != 0)
@@ -635,7 +643,15 @@ bool NewRpgBaseAction::OrganizeQuestLog()
     if (dropped >= 8)
         return true;
 
-    // remove festival/class quests and quests in different zone
+    // remove quests tied to a zone the bot has since left. GetZoneOrSort() < 0
+    // used to be treated the same as "wrong zone" too, but a negative value
+    // there is QuestSortID (a category -- profession/class/dungeon/etc.), not
+    // a zone at all: ~22% of all quest_template rows are negative-sort, so
+    // that half of this condition was quietly dropping a large, essentially
+    // random slice of perfectly good in-progress quests every time this ran,
+    // which is indistinguishable from the client's point of view from those
+    // quests just having been completed. Only an actual positive zone
+    // mismatch is dropped now.
     for (uint16 i = 0; i < MAX_QUEST_LOG_SIZE; ++i)
     {
         uint32 questId = bot->GetQuestSlotQuestId(i);
@@ -645,7 +661,7 @@ bool NewRpgBaseAction::OrganizeQuestLog()
         Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
         const int64_t botZoneId = this->bot->GetZoneId();
 
-        if (quest->GetZoneOrSort() < 0 || (quest->GetZoneOrSort() > 0 && quest->GetZoneOrSort() != botZoneId))
+        if (quest->GetZoneOrSort() > 0 && quest->GetZoneOrSort() != botZoneId)
         {
             LOG_DEBUG("playerbots", "[New RPG] {} drop quest {}", bot->GetName(), questId);
             WorldPacket packet(CMSG_QUESTLOG_REMOVE_QUEST);
@@ -663,31 +679,19 @@ bool NewRpgBaseAction::OrganizeQuestLog()
         }
     }
 
-    if (dropped >= 8)
-        return true;
-
-    // clear quests log
-    for (uint16 i = 0; i < MAX_QUEST_LOG_SIZE; ++i)
-    {
-        uint32 questId = bot->GetQuestSlotQuestId(i);
-        if (!questId)
-            continue;
-
-        Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
-        LOG_DEBUG("playerbots", "[New RPG] {} drop quest {}", bot->GetName(), questId);
-        WorldPacket packet(CMSG_QUESTLOG_REMOVE_QUEST);
-        packet << (uint8)i;
-        WorldPackets::Quest::QuestLogRemoveQuest removeQuest(std::move(packet));
-        removeQuest.Read();
-        bot->GetSession()->HandleQuestLogRemoveQuest(removeQuest);
-        if (botAI->GetMaster())
-            botAI->TellMasterNoFacing(PlayerbotTextMgr::instance().GetBotTextOrDefault(
-                "new_rpg_quest_dropped",
-                "Quest dropped %quest",
-                {{"%quest", ChatHelper::FormatQuest(quest)}}));
-        botAI->rpgStatistic.questDropped++;
-    }
-
+    // 2026-09-13: removed the unconditional "clear quests log" fallback that
+    // used to run here whenever the two filtering passes above dropped fewer
+    // than 8 quests. It had no selectivity at all -- it just iterated every
+    // remaining quest slot and dropped every one, valid/in-progress quests
+    // included, the instant the log had fewer than 2 free slots and hadn't
+    // already lost 8 quests to the legitimate filters. That's the "bots
+    // treat a picked-up quest as if it were already done" bug: a real quest
+    // vanishing from the log with no completion looks identical, from the
+    // outside, to it having been turned in. If the log is still nearly full
+    // after dropping what's actually not-worth-doing/not-capable/wrong-zone,
+    // the correct behavior is just to leave the rest alone -- a subsequent
+    // quest accept attempt fails normally (full log) instead of the bot
+    // silently losing everything it was working on.
     return true;
 }
 
