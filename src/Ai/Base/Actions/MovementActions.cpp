@@ -826,7 +826,18 @@ bool MovementAction::ReachCombatTo(Unit* target, float distance)
     PathType type = path.GetPathType();
     int typeOk = PATHFIND_NORMAL | PATHFIND_INCOMPLETE | PATHFIND_SHORTCUT;
     if (!(type & typeOk))
-        return false;
+    {
+        // Blocked geometry, elevation the polygon mesh doesn't reconcile, or a
+        // missing mmap tile -- this is deterministic for a given (bot, target)
+        // position pair, so without a fallback here isUseful()'s out-of-range
+        // check (ReachTargetActions.cpp) just re-proposes this same failing
+        // call every tick forever: a caster stuck permanently out of spell
+        // range, unable to melee either since nothing else moves it. Fall
+        // back to the direct-line move the WorldObject* MoveTo() overload
+        // above already uses (no path validation, just terrain-Z-clamped
+        // interpolation) rather than leaving the bot stuck.
+        return MoveTo(target, distance, MovementPriority::MOVEMENT_COMBAT);
+    }
     float shortenTo = distance;
 
     // Avoid walking too far when moving towards each other
