@@ -12,14 +12,17 @@
 #include "DatabaseEnv.h"
 #include "DatabaseLoader.h"
 #include "GuildTaskMgr.h"
+#include "Item.h"
 #include "PlayerScript.h"
 #include "PlayerbotAIConfig.h"
 #include "PlayerbotCommandScript.h"
 #include "PlayerbotGuildMgr.h"
 #include "PlayerbotSpellRepository.h"
 #include "PlayerbotWorldThreadProcessor.h"
+#include "QuestDef.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
+#include "Spell.h"
 #include "cmath"
 
 class PlayerbotsDatabaseScript : public DatabaseScript
@@ -161,14 +164,33 @@ public:
     {
         PlayerbotAI* const botAI = PlayerbotsMgr::instance().GetPlayerbotAI(player);
 
-        if (botAI != nullptr)
+        // This hook runs directly on the world thread for every player, every
+        // tick -- unlike the batched async path (PlayerbotWorldThreadProcessor),
+        // which already wraps each operation in try/catch, an uncaught
+        // exception thrown from anywhere inside UpdateAI (hundreds of trigger/
+        // action/multiplier classes, including third-party module code that
+        // injects into this same engine, e.g. mod-dungeon-clear) had no local
+        // catch here and could bring down the whole worldserver over one bad
+        // bot instead of just glitching that bot.
+        try
         {
-            botAI->UpdateAI(diff);
-        }
+            if (botAI != nullptr)
+            {
+                botAI->UpdateAI(diff);
+            }
 
-        if (PlayerbotMgr* playerbotMgr = GET_PLAYERBOT_MGR(player))
+            if (PlayerbotMgr* playerbotMgr = GET_PLAYERBOT_MGR(player))
+            {
+                playerbotMgr->UpdateAI(diff);
+            }
+        }
+        catch (std::exception const& e)
         {
-            playerbotMgr->UpdateAI(diff);
+            LOG_ERROR("playerbots", "Exception in OnPlayerAfterUpdate for {}: {}", player->GetName(), e.what());
+        }
+        catch (...)
+        {
+            LOG_ERROR("playerbots", "Unknown exception in OnPlayerAfterUpdate for {}", player->GetName());
         }
     }
 
@@ -295,6 +317,7 @@ public:
         // otherwise apply bot XP multiplier.
         amount = static_cast<uint32>(std::round(static_cast<float>(amount) * sPlayerbotAIConfig.randomBotXPRate));
     }
+
 };
 
 class PlayerbotsMiscScript : public MiscScript
