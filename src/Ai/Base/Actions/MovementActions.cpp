@@ -1248,15 +1248,31 @@ bool MovementAction::Follow(Unit* target, float distance, float angle)
 
     bot->CastStop();
 
-    // AI_VALUE(LastMovement&, "last movement").Set(target);
-    ClearIdleState();
-
     if (bot->GetMotionMaster()->GetCurrentMovementGeneratorType() == FOLLOW_MOTION_TYPE)
     {
         Unit* currentTarget = ServerFacade::instance().GetChaseTarget(bot);
         if (currentTarget && currentTarget->GetGUID() == target->GetGUID())
             return false;
     }
+
+    // Unlike every other movement call in this file (MoveTo/ReachCombatTo/
+    // JumpTo), this branch used to call MotionMaster::Clear() + MoveFollow()
+    // completely unconditionally -- bypassing the "last movement" priority
+    // lock entirely instead of checking IsWaitingForLastMove() first like
+    // everything else does. "follow" is the lowest-relevance default action
+    // (1.0, see FollowMasterStrategy::getDefaultActions), so any tick it's
+    // the only thing proposed (a single gap in the gather/grab/grind trigger
+    // cadence is enough) it would wipe out an in-flight, still-cooling-down
+    // MOVEMENT_NORMAL order from one of those and snap the bot back toward
+    // the master -- confirmed live as bots aborting a gather/grind approach
+    // and returning to formation the moment the real player moved (this
+    // barely showed up in stationary testing, since Follow()'s own
+    // already-close-enough checks above just return false when the master
+    // hasn't moved). Respect the same lock those other callers do instead.
+    if (IsWaitingForLastMove(MovementPriority::MOVEMENT_NORMAL))
+        return false;
+
+    ClearIdleState();
 
     if (bot->GetMotionMaster()->GetCurrentMovementGeneratorType() != FOLLOW_MOTION_TYPE)
         bot->GetMotionMaster()->Clear();
