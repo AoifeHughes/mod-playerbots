@@ -150,9 +150,7 @@ public:
     // logout mark only this character offline instead of the whole account.
     bool OnPlayerCanMarkAccountOffline(ObjectGuid guid, uint32 /*accountId*/) override
     {
-        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_OFFLINE);
-        stmt->SetData(0, guid.GetCounter());
-        CharacterDatabase.Execute(stmt);
+        CharacterDatabase.Execute("UPDATE characters SET online = 0 WHERE guid = {}", guid.GetCounter());
         return false;
     }
 
