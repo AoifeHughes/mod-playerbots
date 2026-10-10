@@ -2148,7 +2148,7 @@ void RandomPlayerbotMgr::RandomizeFirst(Player* bot)
         // playersLevel is maintained as (highest online real player's level + 3)
         // by CheckPlayers(); undo that offset to get the actual reference level.
         uint32 const referenceLevel = std::clamp<uint32>(
-            playersLevel > 3 ? playersLevel - 3 : sPlayerbotAIConfig.randombotStartingLevel, minLevel, maxLevel);
+            playersLevel > 3 ? playersLevel - 3 : sPlayerbotAIConfig.RandomBotStartingLevel, minLevel, maxLevel);
         uint32 const range = sPlayerbotAIConfig.ClusterLevelsNearPlayersRange;
         uint32 const bandMin = std::max(minLevel, referenceLevel > range ? referenceLevel - range : minLevel);
         uint32 const bandMax = std::min(maxLevel, referenceLevel + range);
