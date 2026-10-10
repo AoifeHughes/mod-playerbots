@@ -59,7 +59,7 @@ bool PossibleRpgTargetsValue::AcceptUnit(Unit* unit)
     if (unit->IsHostileTo(bot) || unit->IsPlayer())
         return false;
 
-    if (ServerFacade::instance().GetDistance2d(bot, unit) <= sPlayerbotAIConfig.tooCloseDistance)
+    if (ServerFacade::instance().GetDistance2d(bot, unit) <= sPlayerbotAIConfig.TooCloseDistance)
         return false;
 
     if (unit->HasNpcFlag(UNIT_NPC_FLAG_SPIRITHEALER))
@@ -161,9 +161,9 @@ bool PossibleNewRpgTargetsValue::AcceptUnit(Unit* unit)
         return false;
 
     // LeashStrategy (see LeashStrategy.cpp) only recalls the bot once it has
-    // already wandered past AiPlayerbot.LeashDistance -- without this, new
+    // already wandered past Playerbots.LeashDistance -- without this, new
     // rpg could still pick an idle-interaction target beyond that distance
-    // (this value's own range is AiPlayerbot.RpgDistance, measured from the
+    // (this value's own range is Playerbots.RpgDistance, measured from the
     // bot itself, not the leader), walk toward it, get recalled by the leash,
     // then immediately re-pick the same distant target again. Refusing any
     // candidate outside the leash distance from the actual leader closes
@@ -175,7 +175,7 @@ bool PossibleNewRpgTargetsValue::AcceptUnit(Unit* unit)
     {
         if (Player* master = botAI->GetMaster())
         {
-            if (ServerFacade::instance().GetDistance2d(master, unit) > sPlayerbotAIConfig.leashDistance)
+            if (ServerFacade::instance().GetDistance2d(master, unit) > sPlayerbotAIConfig.LeashDistance)
                 return false;
         }
     }
@@ -226,7 +226,7 @@ GuidVector PossibleNewRpgGameObjectsValue::Calculate()
         if (!ignoreLos && !bot->IsWithinLOSInMap(go))
             continue;
 
-        if (master && ServerFacade::instance().GetDistance2d(master, go) > sPlayerbotAIConfig.leashDistance)
+        if (master && ServerFacade::instance().GetDistance2d(master, go) > sPlayerbotAIConfig.LeashDistance)
             continue;
 
         guidDistancePairs.push_back({go->GetGUID(), bot->GetExactDist(go)});
@@ -252,7 +252,7 @@ GuidVector PossibleQuestGrabTargetsValue::Calculate()
     Cell::VisitObjects(bot, searcher, range);
 
     // Diagnostic only: log every nearby GO this search actually visits, and exactly which
-    // check rejected it, so "grab" failures can be root-caused from Playerbots.log alone
+    // check rejected it, so "grab" failures can be root-caused from the playerbots log alone
     // (LOG_DEBUG so it stays silent unless Logger.playerbots is at debug level).
     LOG_DEBUG("playerbots", "[Quest Grab Search] {} found {} gameobject(s) within {} yd", bot->GetName(),
               targets.size(), range);

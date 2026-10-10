@@ -819,12 +819,12 @@ bool GrabQuestItemAction::UseQuestItemOnRequiredTarget()
                 Creature* creature = nullptr;
                 if (reqEntry < 0)
                 {
-                    go = bot->FindNearestGameObject(uint32(-reqEntry), sPlayerbotAIConfig.questGrabDistance, true);
+                    go = bot->FindNearestGameObject(uint32(-reqEntry), sPlayerbotAIConfig.QuestGrabDistance, true);
                     target = go;
                 }
                 else
                 {
-                    creature = bot->FindNearestCreature(uint32(reqEntry), sPlayerbotAIConfig.questGrabDistance);
+                    creature = bot->FindNearestCreature(uint32(reqEntry), sPlayerbotAIConfig.QuestGrabDistance);
                     target = creature;
                 }
                 if (!target)

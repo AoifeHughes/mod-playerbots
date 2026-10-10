@@ -818,7 +818,7 @@ bool NewRpgBaseAction::HasQuestToAcceptOrReward(WorldObject* object)
 }
 
 // True when either the "leash" strategy isn't active for this bot, the bot
-// has no real-player master, or (x, y) is within AiPlayerbot.LeashDistance of
+// has no real-player master, or (x, y) is within Playerbots.LeashDistance of
 // that master. Gates every destination new rpg's own status-selection can
 // pick (grind/camp/quest POIs) so it never proposes something a "leash too
 // far" recall (LeashStrategy.cpp) would just walk the bot straight back out
@@ -835,7 +835,7 @@ static bool WithinLeashRange(Player* bot, float x, float y)
     if (!master)
         return true;
 
-    return master->GetDistance2d(x, y) <= sPlayerbotAIConfig.leashDistance;
+    return master->GetDistance2d(x, y) <= sPlayerbotAIConfig.LeashDistance;
 }
 
 // Picks ONE real point from a QuestPOI's spawn/interaction points --

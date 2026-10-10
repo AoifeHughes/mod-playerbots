@@ -62,13 +62,13 @@ private:
 // -- the same core-provided check the client itself uses to decide whether an
 // object should sparkle for a player's quests, covering CHEST/GOOBER/GENERIC/
 // SPELL_FOCUS/QUESTGIVER. Range is measured from the bot's own current
-// position, not the leader -- see the comment on AiPlayerbot.QuestGrabDistance.
+// position, not the leader -- see the comment on Playerbots.QuestGrabDistance.
 class PossibleQuestGrabTargetsValue : public ObjectGuidListCalculatedValue
 {
 public:
     PossibleQuestGrabTargetsValue(PlayerbotAI* botAI, float range = 0.0f)
         : ObjectGuidListCalculatedValue(botAI, "possible quest grab targets"),
-          range(range ? range : sPlayerbotAIConfig.questGrabDistance)
+          range(range ? range : sPlayerbotAIConfig.QuestGrabDistance)
     {
     }
 
