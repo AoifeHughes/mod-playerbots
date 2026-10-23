@@ -804,6 +804,9 @@ bool GrabQuestItemAction::UseQuestItemOnRequiredTarget()
     if (questItems.empty())
         return false;
 
+    // Every pair already in reach is tried before walking anywhere, so a pair the server
+    // rejects can't pull the bot away from one that works.
+    WorldObject* moveTarget = nullptr;
     for (Item* item : questItems)
     {
         ItemTemplate const* proto = item->GetTemplate();
@@ -827,7 +830,7 @@ bool GrabQuestItemAction::UseQuestItemOnRequiredTarget()
                 if (!reqEntry || status.CreatureOrGOCount[i] >= quest->RequiredNpcOrGoCount[i])
                     continue;
 
-                Object* target = nullptr;
+                WorldObject* target = nullptr;
                 GameObject* go = nullptr;
                 Creature* creature = nullptr;
                 if (reqEntry < 0)
@@ -844,7 +847,11 @@ bool GrabQuestItemAction::UseQuestItemOnRequiredTarget()
                     continue;
 
                 if (!IsWithinInteractionDist(target))
-                    return MoveWorldObjectTo(target->GetGUID());
+                {
+                    if (!moveTarget || bot->GetExactDist(target) < bot->GetExactDist(moveTarget))
+                        moveTarget = target;
+                    continue;
+                }
 
                 LOG_DEBUG("playerbots",
                           "[Quest Item Use] {} trying {} on {} {} for quest {} objective {} ({}/{} done)",
@@ -866,7 +873,7 @@ bool GrabQuestItemAction::UseQuestItemOnRequiredTarget()
             }
         }
     }
-    return false;
+    return moveTarget && MoveWorldObjectTo(moveTarget->GetGUID());
 }
 
 bool GrabQuestItemAction::UseQuestItemToCreateRequiredItem()
