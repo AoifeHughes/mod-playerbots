@@ -6,8 +6,10 @@
 
 #include "PossibleRpgTargetsValue.h"
 #include "CellImpl.h"
+#include "DBCStores.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
+#include "LootObjectStack.h"
 #include "NearestGameObjects.h"
 #include "ObjectGuid.h"
 #include "Playerbots.h"
@@ -244,6 +246,43 @@ GuidVector PossibleNewRpgGameObjectsValue::Calculate()
     return results;
 }
 
+// Same key/skill gate the client applies before it lets a player use a locked object.
+// Lock cases are alternatives, so any one the bot meets is enough.
+static bool CanOpenQuestObjectLock(Player* bot, GameObject* go)
+{
+    LockEntry const* lock = sLockStore.LookupEntry(go->GetGOInfo()->GetLockId());
+    if (!lock)
+        return true;
+
+    bool hasRequirement = false;
+    for (uint8 i = 0; i < MAX_LOCK_CASE; ++i)
+    {
+        switch (lock->Type[i])
+        {
+            case LOCK_KEY_ITEM:
+                if (!lock->Index[i])
+                    break;
+                hasRequirement = true;
+                if (bot->HasItemCount(lock->Index[i], 1))
+                    return true;
+                break;
+            case LOCK_KEY_SKILL:
+            {
+                SkillType skill = SkillByLockType(LockType(lock->Index[i]));
+                if (skill == SKILL_NONE)
+                    return true;
+                hasRequirement = true;
+                if (bot->HasSkill(skill) && bot->GetSkillValue(skill) >= lock->Skill[i])
+                    return true;
+                break;
+            }
+            default:
+                break;
+        }
+    }
+    return !hasRequirement;
+}
+
 GuidVector PossibleQuestGrabTargetsValue::Calculate()
 {
     std::list<GameObject*> targets;
@@ -303,6 +342,16 @@ GuidVector PossibleQuestGrabTargetsValue::Calculate()
             LOG_DEBUG("playerbots",
                       "[Quest Grab Search] {} skipping {} (entry {}, type {}, {} yd) -- ActivateToQuest false",
                       bot->GetName(), go->GetGOInfo()->name, go->GetEntry(), go->GetGoType(), bot->GetDistance(go));
+            continue;
+        }
+
+        bool const canOpen = go->GetGoType() == GAMEOBJECT_TYPE_CHEST
+                                 ? LootObject(bot, go->GetGUID()).IsLootPossible(bot)
+                                 : CanOpenQuestObjectLock(bot, go);
+        if (!canOpen)
+        {
+            LOG_DEBUG("playerbots", "[Quest Grab Search] {} skipping {} (entry {}, {} yd) -- locked", bot->GetName(),
+                      go->GetGOInfo()->name, go->GetEntry(), bot->GetDistance(go));
             continue;
         }
 

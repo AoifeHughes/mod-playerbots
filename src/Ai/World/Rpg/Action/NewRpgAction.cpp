@@ -12,6 +12,7 @@
 #include "GossipDef.h"
 #include "IVMapMgr.h"
 #include "LootMgr.h"
+#include "LootObjectStack.h"
 #include "MotionMaster.h"
 #include "MoveSpline.h"
 #include "NewRpgInfo.h"
@@ -532,7 +533,7 @@ bool NewRpgDoQuestAction::DoIncompleteQuest(NewRpgInfo::DoQuest& data)
         // single-value-per-column .map heightmap, which is wrong on any
         // multi-level structure (e.g. Teldrassil's tiered tree). The bot's
         // own Z is a much better search origin since POIs are always close by.
-        float dz = std::max(bot->GetMap()->GetHeight(dx, dy, bot->GetPositionZ()), bot->GetMap()->GetWaterLevel(dx, dy));
+        float dz = GetGroundZ(dx, dy);
 
         // double check for GetQuestPOIPosAndObjectiveIdx
         if (dz == INVALID_HEIGHT || dz == VMAP_INVALID_HEIGHT_VALUE)
@@ -629,7 +630,7 @@ bool NewRpgDoQuestAction::DoCompletedQuest(NewRpgInfo::DoQuest& data)
         float dx = poiInfo[0].pos.x, dy = poiInfo[0].pos.y;
         // See DoIncompleteQuest above for why this starts from the bot's Z
         // instead of MAX_HEIGHT.
-        float dz = std::max(bot->GetMap()->GetHeight(dx, dy, bot->GetPositionZ()), bot->GetMap()->GetWaterLevel(dx, dy));
+        float dz = GetGroundZ(dx, dy);
 
         // double check for GetQuestPOIPosAndObjectiveIdx
         if (dz == INVALID_HEIGHT || dz == VMAP_INVALID_HEIGHT_VALUE)
@@ -759,7 +760,9 @@ void NewRpgTravelFlightAction::ContinueCrossMapTaxi()
 
 bool GrabQuestItemAction::Execute(Event /*event*/)
 {
-    if (SearchQuestGiverAndAcceptOrReward())
+    // No OrganizeQuestLog() here: it is written for random bots and would drop
+    // quests of a player's bot whose log is nearly full.
+    if (SearchQuestGiverAndAcceptOrReward(sPlayerbotAIConfig.QuestGrabDistance, false))
         return true;
 
     if (UseQuestItemOnRequiredTarget())
@@ -780,31 +783,18 @@ bool GrabQuestItemAction::Execute(Event /*event*/)
     if (!IsWithinInteractionDist(go))
         return MoveWorldObjectTo(guid);
 
-    // ActivateToQuest() (the filter behind "possible quest grab targets") accepts
-    // CHEST/GENERIC/GOOBER/SPELL_FOCUS/QUESTGIVER alike, but only CHEST is opened as
-    // loot -- the others grant quest credit via GameObject::Use() (KillCreditGO()),
-    // same as a player right-clicking them. SendLoot() is a no-op for those types.
+    // Chests go through the loot pipeline, which casts the opening/gathering spell or uses the
+    // key their lock needs (SendLoot() skipped the lock: a bot without Herbalism could loot an
+    // Earthroot). The other types grant credit through GameObject::Use(), like a click.
     if (go->GetGoType() == GAMEOBJECT_TYPE_CHEST)
     {
-        // SendLoot releases any loot the bot already has open before opening a
-        // new one (Player::SendLoot) -- skip re-issuing it for the same object
-        // so a loot window already in progress gets a chance to actually be
-        // stored (via the "loot response" -> "store loot" pipeline, already
-        // wired unconditionally for every bot in WorldPacketHandlerStrategy)
-        // instead of being released and reopened every tick.
-        if (bot->GetLootGUID() != guid)
-        {
-            LOG_DEBUG("playerbots", "[Quest Grab] {} looting quest chest {} ({} yd away)", bot->GetName(),
-                      go->GetGOInfo()->name, bot->GetDistance(go));
-            bot->SendLoot(guid, LOOT_SKINNING);
-        }
+        context->GetValue<LootObject>("loot target")->Set(LootObject(bot, guid));
+        return AI_VALUE(LootObjectStack*, "available loot")->Add(guid);
     }
-    else
-    {
-        LOG_DEBUG("playerbots", "[Quest Grab] {} using quest object {} ({} yd away)", bot->GetName(),
-                  go->GetGOInfo()->name, bot->GetDistance(go));
-        go->Use(bot);
-    }
+
+    LOG_DEBUG("playerbots", "[Quest Grab] {} using quest object {} ({} yd away)", bot->GetName(),
+              go->GetGOInfo()->name, bot->GetDistance(go));
+    go->Use(bot);
     return true;
 }
 

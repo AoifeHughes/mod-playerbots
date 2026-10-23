@@ -703,10 +703,12 @@ bool NewRpgBaseAction::OrganizeQuestLog()
     return true;
 }
 
-bool NewRpgBaseAction::SearchQuestGiverAndAcceptOrReward()
+bool NewRpgBaseAction::SearchQuestGiverAndAcceptOrReward(float distanceLimit, bool organizeQuestLog)
 {
-    OrganizeQuestLog();
-    if (ObjectGuid npcOrGo = ChooseNpcOrGameObjectToInteract(true, 80.0f))
+    if (organizeQuestLog)
+        OrganizeQuestLog();
+
+    if (ObjectGuid npcOrGo = ChooseNpcOrGameObjectToInteract(true, distanceLimit))
     {
         WorldObject* object = ObjectAccessor::GetWorldObject(*bot, npcOrGo);
         if (!object)
@@ -884,6 +886,18 @@ static bool PickLeashLegalPoint(Player* bot, std::vector<QuestPOIPoint> const& p
     return true;
 }
 
+// GetHeight only searches down from the z it is given. Starting at the bot's z finds the right
+// floor on multi-level terrain; MAX_HEIGHT is the fallback for ground above the bot (without it
+// ~35% of quest objective points and ~31% of turn-in points were rejected, per #2735 review).
+float NewRpgBaseAction::GetGroundZ(float x, float y)
+{
+    float groundZ = bot->GetMap()->GetHeight(x, y, bot->GetPositionZ());
+    if (groundZ <= INVALID_HEIGHT)
+        groundZ = bot->GetMap()->GetHeight(x, y, MAX_HEIGHT);
+
+    return std::max(groundZ, bot->GetMap()->GetWaterLevel(x, y));
+}
+
 bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector<POIInfo>& poiInfo, bool toComplete)
 {
     Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
@@ -929,7 +943,7 @@ bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector
             // from the bot's own Z lets the probe find the real nearby
             // surface, since RPG POIs are always fairly close to the bot
             // (the 1500yd check above already ran).
-            float dz = std::max(bot->GetMap()->GetHeight(dx, dy, bot->GetPositionZ()), bot->GetMap()->GetWaterLevel(dx, dy));
+            float dz = GetGroundZ(dx, dy);
 
             if (dz == INVALID_HEIGHT || dz == VMAP_INVALID_HEIGHT_VALUE)
                 continue;
@@ -998,7 +1012,7 @@ bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector
 
         // See the toComplete branch above for why this starts from the
         // bot's Z instead of MAX_HEIGHT.
-        float dz = std::max(bot->GetMap()->GetHeight(dx, dy, bot->GetPositionZ()), bot->GetMap()->GetWaterLevel(dx, dy));
+        float dz = GetGroundZ(dx, dy);
 
         if (dz == INVALID_HEIGHT || dz == VMAP_INVALID_HEIGHT_VALUE)
             continue;
