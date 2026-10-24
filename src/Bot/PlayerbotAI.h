@@ -496,6 +496,8 @@ public:
     bool Whisper(std::string const& msg, std::string const& receiverName);
 
     void SpellInterrupted(uint32 spellid);
+    // Drops a follow movement generator before a cast that needs the bot to stand still.
+    void StopFollowForCast(SpellInfo const* spellInfo);
     int32 CalculateGlobalCooldown(uint32 spellid);
     void RequestSpellInterrupt();
     void RemoveAura(std::string const name);

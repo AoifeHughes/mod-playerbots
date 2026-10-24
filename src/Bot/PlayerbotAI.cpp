@@ -1471,6 +1471,21 @@ void PlayerbotAI::HandleBotOutgoingPacket(WorldPacket const& packet)
     }
 }
 
+// A MoveFollow generator keeps moving the bot after its master server-side, even while the AI
+// waits for a cast, so the cast is interrupted the moment the master moves (gathering, opening
+// quest objects, quest items). Players stand still to cast; do the same.
+void PlayerbotAI::StopFollowForCast(SpellInfo const* spellInfo)
+{
+    if (!spellInfo || (!spellInfo->CalcCastTime(bot) && !spellInfo->IsChanneled()))
+        return;
+
+    if (bot->GetMotionMaster()->GetCurrentMovementGeneratorType() != FOLLOW_MOTION_TYPE)
+        return;
+
+    bot->GetMotionMaster()->Clear();
+    bot->StopMoving();
+}
+
 void PlayerbotAI::SpellInterrupted(uint32 spellid)
 {
     for (uint8 type = CURRENT_MELEE_SPELL; type <= CURRENT_CHANNELED_SPELL; type++)
@@ -3860,6 +3875,7 @@ bool PlayerbotAI::CastSpell(uint32 spellId, Unit* target, Item* itemTarget)
     // if (spellSuccess != SPELL_CAST_OK)
     //     return false;
 
+    StopFollowForCast(spellInfo);
     SpellCastResult result = spell->prepare(&targets);
 
     if (result != SPELL_CAST_OK)
@@ -4056,6 +4072,7 @@ bool PlayerbotAI::CastSpell(uint32 spellId, float x, float y, float z, Item* ite
         return false;
     }
 
+    StopFollowForCast(spellInfo);
     spell->prepare(&targets);
 
     if (bot->isMoving() && spell->GetCastTime())

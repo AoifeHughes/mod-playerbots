@@ -1792,6 +1792,11 @@ void MovementAction::DoMovePoint(Unit* unit, float x, float y, float z, bool gen
     if (!mm)
         return;
 
+    // Bots have no client to drop a looping emote state (work, dance, ...) when they start
+    // moving, so the state kept playing and the bot slid along without a run animation.
+    if (unit == bot && !bot->isMoving())
+        bot->HandleEmoteCommand(EMOTE_ONESHOT_NONE);
+
     // bot water collision correction
     if (unit->HasUnitMovementFlag(MOVEMENTFLAG_WATERWALKING) && unit->HasWaterWalkAura())
     {

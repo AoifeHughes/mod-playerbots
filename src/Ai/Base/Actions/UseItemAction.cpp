@@ -447,6 +447,7 @@ bool UseItemAction::UseItem(Item* item, ObjectGuid goGuid, Item* itemTarget, Uni
                                                                {{"%item", itemText}, {"%target", targetText}})
             : PlayerbotTextMgr::instance().GetBotTextOrDefault("use_item", "Using %item", {{"%item", itemText}});
     botAI->TellMasterNoFacing(useText);
+    botAI->StopFollowForCast(sSpellMgr->GetSpellInfo(spellId));
     bot->GetSession()->HandleUseItemOpcode(packet);
     return true;
 }
