@@ -116,20 +116,10 @@ bool PlayerbotAIConfig::Initialize()
     TooCloseDistance = sConfigMgr->GetOption<float>("Playerbots.TooCloseDistance", 5.0f);
     MeleeDistance = sConfigMgr->GetOption<float>("Playerbots.MeleeDistance", 0.75f);
     FollowDistance = sConfigMgr->GetOption<float>("Playerbots.FollowDistance", 1.5f);
-    // Used by the "leash" strategy (LeashStrategy.cpp) to recall a bot from an
-    // independent-movement strategy (new rpg, grind, ...) once it wanders this
-    // far from the group leader. Deliberately a separate, much larger value
-    // than FollowDistance -- that one governs the tight formation-following
-    // radius, this one is a loose leash meant to let a bot roam and act on its
-    // own nearby, not hug the leader.
+    // "leash" formation: how far a bot may roam from the leader. Loot, grind, new rpg and
+    // quest grab targets past it are skipped.
     LeashDistance = sConfigMgr->GetOption<float>("Playerbots.LeashDistance", 30.0f);
-    // Used by the "grab" strategy (QuestGrabStrategy.cpp) as the max distance,
-    // from the bot's own current position (not the leader), it will walk to
-    // interact with a quest-relevant object it can already see. Deliberately
-    // bounded and short: paired with "follow", the bot only ever leaves a
-    // short, one-shot excursion from wherever it already is (which "follow"
-    // keeps near the leader) rather than needing its own leader-distance
-    // check the way "leash" does.
+    // "quest grab": search radius from the bot itself (still capped by the leash when leashed).
     QuestGrabDistance = sConfigMgr->GetOption<float>("Playerbots.QuestGrabDistance", 30.0f);
     WhisperDistance = sConfigMgr->GetOption<float>("Playerbots.WhisperDistance", 6000.0f);
     ContactDistance = sConfigMgr->GetOption<float>("Playerbots.ContactDistance", 0.45f);

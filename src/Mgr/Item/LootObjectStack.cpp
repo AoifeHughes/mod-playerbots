@@ -5,6 +5,7 @@
  */
 
 #include "LootObjectStack.h"
+#include "Formations.h"
 
 #include "LootMgr.h"
 #include "Object.h"
@@ -525,7 +526,8 @@ LootObject LootObjectStack::GetNearest(float maxDistance)
 
         float distance = bot->GetDistance(worldObj);
 
-        if (distance >= nearestDistance || (maxDistance && distance > maxDistance))
+        if (distance >= nearestDistance || (maxDistance && distance > maxDistance) ||
+            !IsWithinLeash(GET_PLAYERBOT_AI(bot), worldObj))
         {
             ++i;
             continue;

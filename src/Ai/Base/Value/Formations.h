@@ -57,6 +57,12 @@ public:
     virtual WorldLocation GetLocationInternal() { return NullLocation; }
 };
 
+// True when the bot's formation is "leash": it may roam up to Playerbots.LeashDistance from the leader.
+bool IsLeashFormation(PlayerbotAI* botAI);
+// False only when the bot is leashed and the target is past Playerbots.LeashDistance from its master,
+// so loot, grind and quest grab never pick something the leash would pull the bot back from.
+bool IsWithinLeash(PlayerbotAI* botAI, WorldObject* target);
+
 class FormationValue : public ManualSetValue<Formation*>
 {
 public:

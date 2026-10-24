@@ -5,10 +5,10 @@
  */
 
 #include "NewRpgBaseAction.h"
-#include <algorithm>
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "Creature.h"
+#include "Formations.h"
 #include "GameObject.h"
 #include "GatherNodeMgr.h"
 #include "GossipDef.h"
@@ -38,6 +38,7 @@
 #include "Timer.h"
 #include "TravelMgr.h"
 #include "G3D/Vector2.h"
+#include <algorithm>
 
 bool NewRpgBaseAction::MoveFarTo(WorldPosition dest)
 {
@@ -830,51 +831,30 @@ bool NewRpgBaseAction::HasQuestToAcceptOrReward(WorldObject* object)
     return false;
 }
 
-// True when either the "leash" strategy isn't active for this bot, the bot
-// has no real-player master, or (x, y) is within Playerbots.LeashDistance of
-// that master. Gates every destination new rpg's own status-selection can
-// pick (grind/camp/quest POIs) so it never proposes something a "leash too
-// far" recall (LeashStrategy.cpp) would just walk the bot straight back out
-// of again -- picking a target, getting recalled, then immediately
-// re-picking the same target is the "pulling on a chain" behavior a plain
-// recall-only leash does not prevent.
-static bool WithinLeashRange(Player* bot, float x, float y)
+// The master a leashed bot must stay near, or nullptr when the bot is not leashed.
+static Player* GetLeashMaster(Player* bot)
 {
     PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
-    if (!botAI || !botAI->HasStrategy("leash", BOT_STATE_NON_COMBAT))
-        return true;
-
-    Player* master = botAI->GetMaster();
-    if (!master)
-        return true;
-
-    return master->GetDistance2d(x, y) <= sPlayerbotAIConfig.LeashDistance;
+    return botAI && IsLeashFormation(botAI) ? botAI->GetMaster() : nullptr;
 }
 
-// Picks ONE real point from a QuestPOI's spawn/interaction points --
-// restricted to those individually within leash range (all of them, if not
-// leashed) -- instead of blending several into a synthetic average
-// coordinate the way this code originally did.
-//
-// Two independent problems with blending: (1) GenerateRandomWeights draws
-// fresh randomness on every single call, so a point cloud spanning both
-// inside and outside the leash can blend to an in-range result on one call
-// (making a quest look "available" during a status check) and an
-// out-of-range result on the very next call that actually commits to a
-// destination -- the exact case that sent a bot walking 380+ yards from its
-// leader despite the leash "working". (2) a mathematical average of two real
-// points is not itself guaranteed to be a real, walkable point -- it can
-// land inside a wall, off a ledge, etc., which is what was producing bots
-// clipping through terrain trying to reach these blended destinations.
-// Picking one of the game's own real points, as SelectRandomGrindPos/
-// SelectRandomCampPos already do for their own candidate lists, avoids both.
+// Keeps new rpg from choosing a destination the leash would pull the bot straight back from.
+static bool WithinLeashRange(Player* leashMaster, float x, float y)
+{
+    return !leashMaster || leashMaster->GetDistance2d(x, y) <= sPlayerbotAIConfig.LeashDistance;
+}
+
+// Picks one real POI point (within leash range) instead of a random blend of all of them: a blend
+// re-rolls on every call, so it can pass the status check and then land out of range, and the
+// average of real points can be inside a wall or off a ledge.
 static bool PickLeashLegalPoint(Player* bot, std::vector<QuestPOIPoint> const& points, float& outX, float& outY)
 {
+    Player* const leashMaster = GetLeashMaster(bot);
     std::vector<QuestPOIPoint const*> candidates;
     candidates.reserve(points.size());
     for (QuestPOIPoint const& point : points)
     {
-        if (WithinLeashRange(bot, point.x, point.y))
+        if (WithinLeashRange(leashMaster, point.x, point.y))
             candidates.push_back(&point);
     }
     if (candidates.empty())
@@ -887,8 +867,7 @@ static bool PickLeashLegalPoint(Player* bot, std::vector<QuestPOIPoint> const& p
 }
 
 // GetHeight only searches down from the z it is given. Starting at the bot's z finds the right
-// floor on multi-level terrain; MAX_HEIGHT is the fallback for ground above the bot (without it
-// ~35% of quest objective points and ~31% of turn-in points were rejected, per #2735 review).
+// floor on multi-level terrain; MAX_HEIGHT is the fallback for ground above the bot.
 float NewRpgBaseAction::GetGroundZ(float x, float y)
 {
     float groundZ = bot->GetMap()->GetHeight(x, y, bot->GetPositionZ());
@@ -896,6 +875,22 @@ float NewRpgBaseAction::GetGroundZ(float x, float y)
         groundZ = bot->GetMap()->GetHeight(x, y, MAX_HEIGHT);
 
     return std::max(groundZ, bot->GetMap()->GetWaterLevel(x, y));
+}
+
+// A reachable point of this POI in the bot's zone, within 1500 yd and the leash.
+bool NewRpgBaseAction::GetQuestPoiPos(QuestPOI const& qPoi, float& x, float& y)
+{
+    if (qPoi.points.empty() || !PickLeashLegalPoint(bot, qPoi.points, x, y))
+        return false;
+
+    if (bot->GetDistance2d(x, y) >= 1500.0f)
+        return false;
+
+    float const z = GetGroundZ(x, y);
+    if (z == INVALID_HEIGHT || z == VMAP_INVALID_HEIGHT_VALUE)
+        return false;
+
+    return bot->GetZoneId() == bot->GetMap()->GetZoneId(bot->GetPhaseMask(), x, y, z);
 }
 
 bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector<POIInfo>& poiInfo, bool toComplete)
@@ -923,35 +918,9 @@ bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector
             if (qPoi.ObjectiveIndex != -1)
                 continue;
 
-            if (qPoi.points.size() == 0)
-                continue;
-
             float dx = 0, dy = 0;
-            if (!PickLeashLegalPoint(bot, qPoi.points, dx, dy))
-                continue;
-
-            if (bot->GetDistance2d(dx, dy) >= 1500.0f)
-                continue;
-
-            // GetHeight's vmap probe only looks maxSearchDist (default 50yd)
-            // below the z it's given. Starting from MAX_HEIGHT (100000) never
-            // lands within 50yd of real geometry, so vmap always misses and
-            // this silently fell back to the flat, single-value-per-column
-            // .map heightmap -- wrong on any multi-level structure (e.g.
-            // Teldrassil's tiered tree), where it returns some other tier's
-            // height instead of the one this POI is actually on. Starting
-            // from the bot's own Z lets the probe find the real nearby
-            // surface, since RPG POIs are always fairly close to the bot
-            // (the 1500yd check above already ran).
-            float dz = GetGroundZ(dx, dy);
-
-            if (dz == INVALID_HEIGHT || dz == VMAP_INVALID_HEIGHT_VALUE)
-                continue;
-
-            if (bot->GetZoneId() != bot->GetMap()->GetZoneId(bot->GetPhaseMask(), dx, dy, dz))
-                continue;
-
-            poiInfo.push_back({{dx, dy}, qPoi.ObjectiveIndex});
+            if (GetQuestPoiPos(qPoi, dx, dy))
+                poiInfo.push_back({{dx, dy}, qPoi.ObjectiveIndex});
         }
 
         if (poiInfo.empty())
@@ -1001,26 +970,10 @@ bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector
         }
         if (!inComplete)
             continue;
-        if (qPoi.points.size() == 0)
-            continue;
+
         float dx = 0, dy = 0;
-        if (!PickLeashLegalPoint(bot, qPoi.points, dx, dy))
-            continue;
-
-        if (bot->GetDistance2d(dx, dy) >= 1500.0f)
-            continue;
-
-        // See the toComplete branch above for why this starts from the
-        // bot's Z instead of MAX_HEIGHT.
-        float dz = GetGroundZ(dx, dy);
-
-        if (dz == INVALID_HEIGHT || dz == VMAP_INVALID_HEIGHT_VALUE)
-            continue;
-
-        if (bot->GetZoneId() != bot->GetMap()->GetZoneId(bot->GetPhaseMask(), dx, dy, dz))
-            continue;
-
-        poiInfo.push_back({{dx, dy}, qPoi.ObjectiveIndex});
+        if (GetQuestPoiPos(qPoi, dx, dy))
+            poiInfo.push_back({{dx, dy}, qPoi.ObjectiveIndex});
     }
 
     if (poiInfo.size() == 0)
@@ -1034,6 +987,7 @@ bool NewRpgBaseAction::GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector
 
 WorldPosition NewRpgBaseAction::SelectRandomGrindPos(Player* bot)
 {
+    Player* const leashMaster = GetLeashMaster(bot);
     std::vector<WorldLocation> const& locs = sTravelMgr.GetLocsPerLevelCache(bot->GetLevel());
     float hiRange = 500.0f;
     float loRange = 2500.0f;
@@ -1059,7 +1013,7 @@ WorldPosition NewRpgBaseAction::SelectRandomGrindPos(Player* bot)
         if (bot->GetExactDist(loc) > 2500.0f)
             continue;
 
-        if (!WithinLeashRange(bot, loc.GetPositionX(), loc.GetPositionY()))
+        if (!WithinLeashRange(leashMaster, loc.GetPositionX(), loc.GetPositionY()))
             continue;
 
         if (!inCity && bot->GetMap()->GetZoneId(bot->GetPhaseMask(), loc.GetPositionX(), loc.GetPositionY(),
@@ -1095,6 +1049,7 @@ WorldPosition NewRpgBaseAction::SelectRandomGrindPos(Player* bot)
 
 WorldPosition NewRpgBaseAction::SelectRandomCampPos(Player* bot)
 {
+    Player* const leashMaster = GetLeashMaster(bot);
     const std::vector<WorldLocation> locs = sTravelMgr.GetTravelHubs(bot);
 
     bool inCity = false;
@@ -1118,7 +1073,7 @@ WorldPosition NewRpgBaseAction::SelectRandomCampPos(Player* bot)
         if (bot->GetExactDist(loc) < 50.0f)
             continue;
 
-        if (!WithinLeashRange(bot, loc.GetPositionX(), loc.GetPositionY()))
+        if (!WithinLeashRange(leashMaster, loc.GetPositionX(), loc.GetPositionY()))
             continue;
 
         if (!inCity && bot->GetMap()->GetZoneId(bot->GetPhaseMask(), loc.GetPositionX(), loc.GetPositionY(),
@@ -1159,11 +1114,13 @@ bool NewRpgBaseAction::SelectRandomFlightTaxiNode(uint32& flightMasterEntry, Wor
 
 bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateStatus)
 {
+    // A leashed bot does in-range quests first, and otherwise stays with the leader.
+    bool const leashed = IsLeashFormation(botAI);
     std::vector<NewRpgStatus> availableStatus;
     uint32 probSum = 0;
     for (NewRpgStatus status : candidateStatus)
     {
-        if (sPlayerbotAIConfig.RpgStatusProbWeight[status] == 0)
+        if (sPlayerbotAIConfig.RpgStatusProbWeight[status] == 0 || (leashed && status != RPG_DO_QUEST))
             continue;
 
         if (CheckRpgStatusAvailable(status))
@@ -1172,19 +1129,8 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
             probSum += sPlayerbotAIConfig.RpgStatusProbWeight[status];
         }
     }
-    // While leashed, prefer a genuine quest objective over the normal
-    // weighted roll against wander/grind/camp. CheckRpgStatusAvailable for
-    // RPG_DO_QUEST already ran every quest POI through WithinLeashRange, so
-    // it being available here means there's real, in-range quest content --
-    // without this, DoQuest (weight 60) is still only ~35-45% of the total
-    // roll whenever wander/grind/camp are also available, so a bot parked
-    // right next to a quest object could spend many cycles wandering before
-    // the dice happen to favor it. That variety is fine for a free-roaming
-    // bot with nowhere in particular to be, but not for one leashed to you
-    // specifically to get things done nearby.
-    bool const leashed = botAI->HasStrategy("leash", BOT_STATE_NON_COMBAT);
     bool const preferQuest = leashed &&
-        std::find(availableStatus.begin(), availableStatus.end(), RPG_DO_QUEST) != availableStatus.end();
+        std::ranges::find(availableStatus, RPG_DO_QUEST) != availableStatus.end();
 
     NewRpgStatus chosenStatus = RPG_STATUS_END;
     if (preferQuest)
@@ -1193,15 +1139,7 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
     }
     else if (leashed)
     {
-        // Leashed with no in-range quest right now: stay close to the
-        // leader instead of wandering/grinding/camping the way a
-        // free-roaming bot would. NewRpgStrategy::getDefaultActions always
-        // proposes "new rpg status update" at relevance 11.0 whenever new
-        // rpg is active -- that beats FollowMasterStrategy's own baseline
-        // "follow" (relevance 1.0) unconditionally, so plain "follow" never
-        // gets a turn of its own while this strategy is running. This action
-        // has to explicitly follow itself instead of just doing nothing and
-        // hoping a lower-relevance action picks up the slack.
+        // "new rpg status update" outranks plain "follow", so follow from here.
         if (Player* master = botAI->GetMaster())
             Follow(master);
         botAI->rpgInfo.ChangeToIdle();
@@ -1282,9 +1220,8 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
                 Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
                 if (quest)
                 {
-                    LOG_DEBUG("playerbots", "[New RPG] {} chose to do quest {} ({} in-range candidate(s), leash-preferred: {})",
-                              bot->GetName(), questId, availableQuests.size(),
-                              botAI->HasStrategy("leash", BOT_STATE_NON_COMBAT));
+                    LOG_DEBUG("playerbots", "[New RPG] {} chose to do quest {} ({} candidate(s), leashed: {})",
+                              bot->GetName(), questId, availableQuests.size(), leashed);
                     botAI->rpgInfo.ChangeToDoQuest(questId, quest);
                     return true;
                 }

@@ -5,6 +5,7 @@
  */
 
 #include "GrindTargetValue.h"
+#include "Formations.h"
 #include "NewRpgInfo.h"
 #include "Playerbots.h"
 #include "ReputationMgr.h"
@@ -91,6 +92,9 @@ Unit* GrindTargetValue::FindTargetForGrinding(uint32 assistCount)
                 botAI->TellMaster(chat->FormatWorldobject(unit) + " ignored (far from master).");
             continue;
         }
+
+        if (!IsWithinLeash(botAI, unit))
+            continue;
 
         if (!bot->InBattleground() && (int)unit->GetLevel() - (int)bot->GetLevel() > 4 && !unit->GetGUID().IsPlayer())
             continue;
