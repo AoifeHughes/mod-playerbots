@@ -102,10 +102,11 @@ public:
 class NearFormation : public MoveAheadFormation
 {
 public:
-    // "leash" is "near" with a loose follow distance: "follow" only kicks in once the bot is past
-    // Playerbots.LeashDistance, so new rpg, grind or "quest grab" can act freely around the leader.
+    // "leash" is "near" with a loose pull-back: an idle bot follows at "near" range (the low-relevance
+    // "follow" default action), but loot, gather, new rpg, grind and "quest grab" outrank it and may
+    // range up to Playerbots.LeashDistance, past which "leash too far" pulls the bot back.
     explicit NearFormation(PlayerbotAI* botAI, bool leash = false)
-        : MoveAheadFormation(botAI, leash ? "leash" : "near"), _leash(leash)
+        : MoveAheadFormation(botAI, leash ? "leash" : "near")
     {
     }
 
@@ -132,13 +133,9 @@ public:
         return WorldLocation(master->GetMapId(), x, y, z);
     }
 
-    float GetMaxDistance() override
-    {
-        return _leash ? sPlayerbotAIConfig.LeashDistance : sPlayerbotAIConfig.FollowDistance;
-    }
-
-private:
-    bool _leash;
+    // Same as "near" for both: returning LeashDistance here made an idle leashed bot stand still
+    // until the leader was 40 yd away, then stop wherever the leader had been.
+    float GetMaxDistance() override { return sPlayerbotAIConfig.FollowDistance; }
 };
 
 class ChaosFormation : public MoveAheadFormation
