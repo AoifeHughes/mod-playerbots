@@ -9,6 +9,7 @@
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "DBCStores.h"
+#include "Formations.h"
 #include "GossipDef.h"
 #include "IVMapMgr.h"
 #include "MotionMaster.h"
@@ -249,6 +250,12 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
 {
     NewRpgInfo& info = botAI->rpgInfo;
     NewRpgStatus status = info.GetStatus();
+    // A leashed bot only does in-range quests; drop a status picked before the leash was set.
+    if (status != RPG_IDLE && status != RPG_DO_QUEST && !bot->IsInFlight() && IsLeashFormation(botAI))
+    {
+        info.ChangeToIdle();
+        return true;
+    }
     switch (status)
     {
         case RPG_IDLE:
@@ -461,6 +468,13 @@ bool NewRpgDoQuestAction::Execute(Event /*event*/)
     if (!dataPtr)
         return false;
     auto& data = *dataPtr;
+    // The leader moved on since this POI was picked: re-pick one in range (or go idle) rather
+    // than walk out and get pulled back by "leash too far" until MoveFarTo's stuck teleport.
+    if (data.pos != WorldPosition() && IsPastLeash(data.pos))
+    {
+        data.pos = WorldPosition();
+        data.lastReachPOI = 0;
+    }
     uint32 questId = data.questId;
     uint8 questStatus = bot->GetQuestStatus(questId);
     switch (questStatus)
@@ -608,6 +622,12 @@ bool NewRpgDoQuestAction::DoCompletedQuest(NewRpgInfo::DoQuest& data)
         // if quest is completed, back to poi with -1 idx to reward
         BroadcastHelper::BroadcastQuestUpdateComplete(botAI, bot, quest);
         botAI->rpgStatistic.questCompleted++;
+        data.objectiveIdx = -1;
+        data.pos = WorldPosition();
+    }
+
+    if (data.pos == WorldPosition())
+    {
         std::vector<POIInfo> poiInfo;
         if (!GetQuestPOIPosAndObjectiveIdx(questId, poiInfo, true))
         {
@@ -627,11 +647,7 @@ bool NewRpgDoQuestAction::DoCompletedQuest(NewRpgInfo::DoQuest& data)
         WorldPosition pos(bot->GetMapId(), dx, dy, dz);
         data.lastReachPOI = 0;
         data.pos = pos;
-        data.objectiveIdx = -1;
     }
-
-    if (data.pos == WorldPosition())
-        return false;
 
     if (bot->GetDistance(data.pos) > 10.0f && !data.lastReachPOI)
     {

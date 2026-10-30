@@ -844,6 +844,11 @@ static bool WithinLeashRange(Player* leashMaster, float x, float y)
     return !leashMaster || leashMaster->GetDistance2d(x, y) <= sPlayerbotAIConfig.LeashDistance;
 }
 
+bool NewRpgBaseAction::IsPastLeash(WorldPosition const& pos)
+{
+    return !WithinLeashRange(GetLeashMaster(bot), pos.GetPositionX(), pos.GetPositionY());
+}
+
 // Picks one real POI point (within leash range) instead of a random blend of all of them: a blend
 // re-rolls on every call, so it can pass the status check and then land out of range, and the
 // average of real points can be inside a wall or off a ledge.
@@ -1116,6 +1121,11 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
 {
     // A leashed bot does in-range quests first, and otherwise stays with the leader.
     bool const leashed = IsLeashFormation(botAI);
+    // The quest log / POI scan below is too costly to repeat every tick; an idle leashed bot
+    // rescans only every LeashQuestRecheckInterval. ChangeToIdle() below restarts that window.
+    if (leashed && !botAI->rpgInfo.HasStatusPersisted(LeashQuestRecheckInterval))
+        return false;
+
     std::vector<NewRpgStatus> availableStatus;
     uint32 probSum = 0;
     for (NewRpgStatus status : candidateStatus)
@@ -1139,11 +1149,10 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
     }
     else if (leashed)
     {
-        // "new rpg status update" outranks plain "follow", so follow from here.
-        if (Player* master = botAI->GetMaster())
-            Follow(master);
+        // Nothing in range: stay IDLE and yield, so loot, gather, food and quest grab get the
+        // tick. The leash formation's "follow" / "leash too far" keep the bot near the leader.
         botAI->rpgInfo.ChangeToIdle();
-        return true;
+        return false;
     }
     else
     {

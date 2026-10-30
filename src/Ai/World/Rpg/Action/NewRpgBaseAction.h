@@ -61,6 +61,7 @@ protected:
     float GetGroundZ(float x, float y);
     bool GetQuestPoiPos(QuestPOI const& qPoi, float& x, float& y);
     bool GetQuestPOIPosAndObjectiveIdx(uint32 questId, std::vector<POIInfo>& poiInfo, bool toComplete = false);
+    bool IsPastLeash(WorldPosition const& pos);
     static WorldPosition SelectRandomGrindPos(Player* bot);
     static WorldPosition SelectRandomCampPos(Player* bot);
     bool SelectRandomFlightTaxiNode(uint32& flightMasterEntry, WorldPosition& flightMasterPos, std::vector<uint32>& path);
@@ -78,6 +79,8 @@ protected:
     // the teleport fires, but long enough that a genuine long
     // walk that is slowly making progress never triggers it.
     const uint32 stuckTime = 90 * IN_MILLISECONDS;
+    // How often an idle leashed bot re-scans its quest log for an in-range objective.
+    static constexpr uint32 LeashQuestRecheckInterval = 10 * IN_MILLISECONDS;
 };
 
 #endif
